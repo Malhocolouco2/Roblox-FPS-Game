@@ -1,5 +1,5 @@
 -- ============================================================================
--- ROBLOX FPS GAME - CLIENT CAMERA & CONTROLS (CAMERA FIXED)
+-- ROBLOX FPS GAME - CLIENT CAMERA & CONTROLS (PROPER FPS)
 -- Local Script: StarterPlayer > StarterCharacterScripts
 -- ============================================================================
 
@@ -19,12 +19,18 @@ local humanoid = character:WaitForChild("Humanoid")
 local camera = workspace.CurrentCamera
 
 -- ============================================================================
+-- MOUSE SETTINGS
+-- ============================================================================
+
+mouse.Icon = "" -- Esconder mouse padrão
+
+-- ============================================================================
 -- VARIÁVEIS DE CÂMERA
 -- ============================================================================
 
 local cameraX = 0
 local cameraY = 0
-local sensitivity = 0.003
+local sensitivity = 0.002
 local maxLookAngle = math.rad(85)
 
 local shiftLocked = false
@@ -36,14 +42,12 @@ local shiftLocked = false
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if input.KeyCode == Enum.KeyCode.LeftShift then
 		shiftLocked = true
-		mouse.Icon = ""
 	end
 end)
 
 UserInputService.InputEnded:Connect(function(input, gameProcessed)
 	if input.KeyCode == Enum.KeyCode.LeftShift then
 		shiftLocked = false
-		mouse.Icon = ""
 	end
 end)
 
@@ -97,8 +101,9 @@ mouse.Button1Down:Connect(function()
 
 	canFire = false
 
-	local origin = head.CFrame.Position + head.CFrame.LookVector
-	local direction = head.CFrame.LookVector
+	-- Tiro direto na frente da câmera
+	local origin = camera.CFrame.Position
+	local direction = camera.CFrame.LookVector
 
 	local Events = game.ReplicatedStorage:FindFirstChild("Events")
 	if Events then
@@ -119,7 +124,7 @@ local lastMouseY = 0
 RunService.RenderStepped:Connect(function()
 	if not character.Parent or not shiftLocked then return end
 
-	-- OBTER POSIÇÃO DO MOUSE AGORA
+	-- OBTER POSIÇÃO DO MOUSE
 	local mouseX = mouse.X
 	local mouseY = mouse.Y
 
@@ -142,13 +147,10 @@ RunService.RenderStepped:Connect(function()
 	local pitch = CFrame.Angles(-cameraY, 0, 0)
 
 	rootPart.CFrame = CFrame.new(rootPart.Position) * yaw
-	head.CFrame = rootPart.CFrame * CFrame.new(0, 0.5, 0) * pitch
+	head.CFrame = rootPart.CFrame * CFrame.new(0, 0.5, 0) * pitch * CFrame.Angles(-cameraY, 0, 0)
 
-	-- POSICIONAR CÂMERA (lado da cabeça)
-	local cameraOffset = head.CFrame.RightVector * 0.5 + head.CFrame.UpVector * 0.2
-	local cameraPos = head.Position + cameraOffset
-
-	camera.CFrame = CFrame.new(cameraPos, cameraPos + head.CFrame.LookVector)
+	-- POSICIONAR CÂMERA NA CABEÇA (Primeira Pessoa Pura do Roblox)
+	camera.CFrame = head.CFrame * CFrame.new(0, 0, 0) * pitch
 end)
 
 -- ============================================================================
@@ -184,4 +186,4 @@ RunService.Heartbeat:Connect(function()
 	end
 end)
 
-print("✓ Client loaded - Camera FIXED")
+print("✓ Client loaded - True FPS Mode")
