@@ -1,5 +1,5 @@
 -- ============================================================================
--- ROBLOX FPS COMPLETE GAME - CLIENT CAMERA & INPUT (SHIFT LOCK)
+-- ROBLOX FPS COMPLETE GAME - CLIENT CAMERA & INPUT (SHIFT LOCK - FIXED)
 -- Local Script: StarterPlayer > StarterCharacterScripts > CameraController
 -- ============================================================================
 
@@ -42,9 +42,9 @@ end)
 local cameraX = 0 -- Rotação horizontal (Yaw)
 local cameraY = 0 -- Rotação vertical (Pitch)
 
-local sensitivity = 0.005
-local maxPitch = math.rad(85)
-local minPitch = math.rad(-85)
+local sensitivity = 0.002
+local maxPitch = math.rad(80)
+local minPitch = math.rad(-80)
 
 -- ============================================================================
 -- INPUT STATE
@@ -55,26 +55,28 @@ local isCrouching = false
 local currentWeapon = "AK47"
 
 -- ============================================================================
--- MOUSE MOVEMENT
+-- CONTINUOUS MOUSE TRACKING
 -- ============================================================================
 
-local lastMousePos = Vector2.new(0, 0)
-local firstMouse = true
+local lastMouseX = 0
+local lastMouseY = 0
 
-mouse.Move:Connect(function()
-	if not shiftLockActive then return end
+RunService.RenderStepped:Connect(function()
+	if not shiftLockActive or not character.Parent then return end
 	
-	local currentMousePos = Vector2.new(mouse.X, mouse.Y)
+	local currentMouseX = mouse.X
+	local currentMouseY = mouse.Y
 	
-	if not firstMouse then
-		local delta = currentMousePos - lastMousePos
-		
-		cameraX = cameraX - (delta.X * sensitivity)
-		cameraY = math.clamp(cameraY - (delta.Y * sensitivity), minPitch, maxPitch)
+	local deltaX = currentMouseX - lastMouseX
+	local deltaY = currentMouseY - lastMouseY
+	
+	if deltaX ~= 0 or deltaY ~= 0 then
+		cameraX = cameraX - (deltaX * sensitivity)
+		cameraY = math.clamp(cameraY - (deltaY * sensitivity), minPitch, maxPitch)
 	end
 	
-	firstMouse = false
-	lastMousePos = currentMousePos
+	lastMouseX = currentMouseX
+	lastMouseY = currentMouseY
 end)
 
 -- ============================================================================
@@ -169,42 +171,30 @@ mouse.Button1Down:Connect(function()
 end)
 
 -- ============================================================================
--- UPDATE CHARACTER ROTATION
+-- UPDATE CHARACTER ROTATION & CAMERA
 -- ============================================================================
 
-local function UpdateCharacterRotation()
-	if not shiftLockActive or not character.Parent then return end
-	
-	-- Aplicar rotação horizontal ao corpo (Yaw)
-	local yawCFrame = CFrame.Angles(0, -cameraX, 0)
-	rootPart.CFrame = rootPart.CFrame:ToWorldSpace(CFrame.new() * yawCFrame:Inverse())
-	
-	-- Aplicar rotação vertical à cabeça (Pitch)
-	local headCurrentCFrame = head.CFrame
-	head.CFrame = rootPart.CFrame * CFrame.new(0, 0.5, 0) * CFrame.Angles(-cameraY, -cameraX, 0)
-end
-
--- ============================================================================
--- UPDATE CAMERA POSITION
--- ============================================================================
-
-local function UpdateCamera()
-	if not character.Parent then return end
-	
-	local headPos = head.Position
-	local headCFrame = head.CFrame
+RunService.RenderStepped:Connect(function()
+	if not character.Parent or humanoid.Health <= 0 then
+		return
+	end
 	
 	if shiftLockActive then
-		-- Camera offset para shift lock (lado da cabeça)
-		local offset = headCFrame.RightVector * 0.5 + headCFrame.UpVector * 0.2
-		local cameraPos = headPos + offset
+		-- Atualizar rotação do corpo
+		local newCFrame = CFrame.Angles(0, -cameraX, 0)
+		rootPart.CFrame = rootPart.CFrame:ToWorldSpace(CFrame.new() * newCFrame:Inverse())
 		
-		camera.CFrame = CFrame.new(cameraPos, cameraPos + headCFrame.LookVector)
+		-- Atualizar posição e rotação da cabeça
+		head.CFrame = rootPart.CFrame * CFrame.new(0, 0.5, 0) * CFrame.Angles(-cameraY, -cameraX, 0)
+		
+		-- Posicionar câmera
+		local cameraPos = head.Position + head.CFrame.RightVector * 0.5 + head.CFrame.UpVector * 0.2
+		camera.CFrame = CFrame.new(cameraPos, cameraPos + head.CFrame.LookVector)
 	else
-		-- Camera padrão
-		camera.CFrame = CFrame.new(headPos + head.CFrame.LookVector * 0.1, headPos + head.CFrame.LookVector)
+		-- Câmera padrão (sem shift lock)
+		camera.CFrame = CFrame.new(head.Position + head.CFrame.LookVector * 0.1, head.Position + head.CFrame.LookVector)
 	end
-end
+end)
 
 -- ============================================================================
 -- MOVEMENT
@@ -244,19 +234,6 @@ RunService.Heartbeat:Connect(function()
 	else
 		humanoid:Move(Vector3.new(0, 0, 0), false)
 	end
-end)
-
--- ============================================================================
--- MAIN RENDER LOOP
--- ============================================================================
-
-RunService.RenderStepped:Connect(function()
-	if not character.Parent or humanoid.Health <= 0 then
-		return
-	end
-	
-	UpdateCharacterRotation()
-	UpdateCamera()
 end)
 
 print("✓ Camera controller with Shift Lock loaded")
