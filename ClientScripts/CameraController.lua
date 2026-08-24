@@ -12,20 +12,19 @@ local character = script.Parent
 local humanoid = character:WaitForChild("Humanoid")
 local rootPart = character:WaitForChild("HumanoidRootPart")
 local head = character:WaitForChild("Head")
+local mouse = player:GetMouse()
 
 local camera = workspace.CurrentCamera
 camera.FieldOfView = 90
 
 -- ============================================================================
--- SHIFT LOCK SETUP
+-- SHIFT LOCK STATE
 -- ============================================================================
 
 local shiftLockActive = false
-local shiftLockOffset = Vector3.new(0.5, 0, 0)
 
--- Detectar Shift para ativar Shift Lock
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	if input.KeyCode == Enum.KeyCode.LeftShift and not gameProcessed then
+	if input.KeyCode == Enum.KeyCode.LeftShift then
 		shiftLockActive = true
 	end
 end)
@@ -37,81 +36,46 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
 end)
 
 -- ============================================================================
--- CAMERA VARIABLES
+-- CAMERA ANGLES
 -- ============================================================================
 
-local camX = 0
-local camY = 0
+local cameraX = 0 -- Rotação horizontal (Yaw)
+local cameraY = 0 -- Rotação vertical (Pitch)
+
 local sensitivity = 0.005
-local maxLookDown = math.rad(85)
-local maxLookUp = math.rad(85)
+local maxPitch = math.rad(85)
+local minPitch = math.rad(-85)
 
 -- ============================================================================
--- INPUT VARIABLES
+-- INPUT STATE
 -- ============================================================================
 
-local moveDirection = Vector3.new(0, 0, 0)
-local isSprintng = false
+local moveInput = Vector3.new(0, 0, 0)
 local isCrouching = false
 local currentWeapon = "AK47"
 
 -- ============================================================================
--- CAMERA ROTATION
+-- MOUSE MOVEMENT
 -- ============================================================================
 
-local lastMousePos = UserInputService:GetMouseLocation()
+local lastMousePos = Vector2.new(0, 0)
+local firstMouse = true
 
-local function UpdateCameraRotation()
-	local currentMousePos = UserInputService:GetMouseLocation()
-	local mouseDelta = currentMousePos - lastMousePos
+mouse.Move:Connect(function()
+	if not shiftLockActive then return end
+	
+	local currentMousePos = Vector2.new(mouse.X, mouse.Y)
+	
+	if not firstMouse then
+		local delta = currentMousePos - lastMousePos
+		
+		cameraX = cameraX - (delta.X * sensitivity)
+		cameraY = math.clamp(cameraY - (delta.Y * sensitivity), minPitch, maxPitch)
+	end
+	
+	firstMouse = false
 	lastMousePos = currentMousePos
-	
-	if shiftLockActive then
-		camX = camX - (mouseDelta.X * sensitivity)
-		camY = math.clamp(camY - (mouseDelta.Y * sensitivity), -maxLookUp, maxLookDown)
-	end
-end
-
-local function UpdateCameraPosition()
-	if not character.Parent then return end
-	
-	local headPos = head.Position
-	local headCFrame = head.CFrame
-	
-	if shiftLockActive then
-		-- Camera offset para shift lock (lado direito da cabeça)
-		local cameraPos = headPos + headCFrame.RightVector * shiftLockOffset.X + headCFrame.UpVector * 0.3
-		camera.CFrame = CFrame.new(cameraPos, cameraPos + headCFrame.LookVector)
-	else
-		-- Camera normal seguindo a cabeça sem rotation
-		camera.CFrame = CFrame.new(headPos + head.CFrame.LookVector * 0.1, headPos + headCFrame.LookVector)
-	end
-end
-
--- ============================================================================
--- APPLY CAMERA ROTATION TO CHARACTER
--- ============================================================================
-
-local function ApplyCharacterRotation()
-	if shiftLockActive then
-		local yawCFrame = CFrame.Angles(0, -camX, 0)
-		local pitchCFrame = CFrame.Angles(-camY, 0, 0)
-		
-		-- Aplicar apenas yaw ao corpo (rotação horizontal)
-		rootPart.CFrame = rootPart.CFrame:ToWorldSpace(CFrame.new() * yawCFrame:Inverse())
-		
-		-- Aplicar pitch à cabeça (rotação vertical)
-		local neckWeld = head:FindFirstChild("Neck") or rootPart:FindFirstChild("Neck")
-		if neckWeld and neckWeld:IsA("Weld") then
-			-- Armazenar o C0 padrão se ainda não estiver armazenado
-			if not neckWeld:GetAttribute("DefaultC0") then
-				neckWeld:SetAttribute("DefaultC0", neckWeld.C0)
-			end
-			local defaultC0 = neckWeld:GetAttribute("DefaultC0")
-			neckWeld.C0 = defaultC0 * pitchCFrame
-		end
-	end
-end
+end)
 
 -- ============================================================================
 -- KEYBOARD INPUT
@@ -119,13 +83,13 @@ end
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if input.KeyCode == Enum.KeyCode.W then
-		moveDirection = moveDirection + Vector3.new(0, 0, -1)
+		moveInput = moveInput + Vector3.new(0, 0, -1)
 	elseif input.KeyCode == Enum.KeyCode.S then
-		moveDirection = moveDirection + Vector3.new(0, 0, 1)
+		moveInput = moveInput + Vector3.new(0, 0, 1)
 	elseif input.KeyCode == Enum.KeyCode.A then
-		moveDirection = moveDirection + Vector3.new(-1, 0, 0)
+		moveInput = moveInput + Vector3.new(-1, 0, 0)
 	elseif input.KeyCode == Enum.KeyCode.D then
-		moveDirection = moveDirection + Vector3.new(1, 0, 0)
+		moveInput = moveInput + Vector3.new(1, 0, 0)
 	elseif input.KeyCode == Enum.KeyCode.LeftControl then
 		isCrouching = true
 	elseif input.KeyCode == Enum.KeyCode.Space then
@@ -142,15 +106,40 @@ end)
 
 UserInputService.InputEnded:Connect(function(input, gameProcessed)
 	if input.KeyCode == Enum.KeyCode.W then
-		moveDirection = moveDirection - Vector3.new(0, 0, -1)
+		moveInput = moveInput - Vector3.new(0, 0, -1)
 	elseif input.KeyCode == Enum.KeyCode.S then
-		moveDirection = moveDirection - Vector3.new(0, 0, 1)
+		moveInput = moveInput - Vector3.new(0, 0, 1)
 	elseif input.KeyCode == Enum.KeyCode.A then
-		moveDirection = moveDirection - Vector3.new(-1, 0, 0)
+		moveInput = moveInput - Vector3.new(-1, 0, 0)
 	elseif input.KeyCode == Enum.KeyCode.D then
-		moveDirection = moveDirection - Vector3.new(1, 0, 0)
+		moveInput = moveInput - Vector3.new(1, 0, 0)
 	elseif input.KeyCode == Enum.KeyCode.LeftControl then
 		isCrouching = false
+	end
+end)
+
+-- ============================================================================
+-- WEAPON SWITCHING (1-5 keys)
+-- ============================================================================
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	
+	if input.KeyCode == Enum.KeyCode.Key1 then
+		currentWeapon = "Knife"
+		print("✓ Switched to: " .. currentWeapon)
+	elseif input.KeyCode == Enum.KeyCode.Key2 then
+		currentWeapon = "Deagle"
+		print("✓ Switched to: " .. currentWeapon)
+	elseif input.KeyCode == Enum.KeyCode.Key3 then
+		currentWeapon = "AK47"
+		print("✓ Switched to: " .. currentWeapon)
+	elseif input.KeyCode == Enum.KeyCode.Key4 then
+		currentWeapon = "M4A1"
+		print("✓ Switched to: " .. currentWeapon)
+	elseif input.KeyCode == Enum.KeyCode.Key5 then
+		currentWeapon = "AWP"
+		print("✓ Switched to: " .. currentWeapon)
 	end
 end)
 
@@ -159,8 +148,6 @@ end)
 -- ============================================================================
 
 local canFire = true
-local fireRate = 0.1
-local mouse = player:GetMouse()
 
 mouse.Button1Down:Connect(function()
 	if not canFire or not character.Parent or humanoid.Health <= 0 or not shiftLockActive then
@@ -177,23 +164,46 @@ mouse.Button1Down:Connect(function()
 		GameEvents.FireWeapon:FireServer(origin, direction, currentWeapon)
 	end
 	
-	wait(fireRate)
+	wait(0.1)
 	canFire = true
 end)
 
 -- ============================================================================
--- WEAPON SWITCHING
+-- UPDATE CHARACTER ROTATION
 -- ============================================================================
 
-for i = 1, 5 do
-	UserInputService.InputBegan:Connect(function(input, gameProcessed)
-		if gameProcessed then return end
-		if input.KeyCode == Enum.KeyCode["Key" .. i] then
-			local weapons = {"Knife", "Deagle", "AK47", "M4A1", "AWP"}
-			currentWeapon = weapons[i] or currentWeapon
-			print("✓ Switched to: " .. currentWeapon)
-		end
-	end)
+local function UpdateCharacterRotation()
+	if not shiftLockActive or not character.Parent then return end
+	
+	-- Aplicar rotação horizontal ao corpo (Yaw)
+	local yawCFrame = CFrame.Angles(0, -cameraX, 0)
+	rootPart.CFrame = rootPart.CFrame:ToWorldSpace(CFrame.new() * yawCFrame:Inverse())
+	
+	-- Aplicar rotação vertical à cabeça (Pitch)
+	local headCurrentCFrame = head.CFrame
+	head.CFrame = rootPart.CFrame * CFrame.new(0, 0.5, 0) * CFrame.Angles(-cameraY, -cameraX, 0)
+end
+
+-- ============================================================================
+-- UPDATE CAMERA POSITION
+-- ============================================================================
+
+local function UpdateCamera()
+	if not character.Parent then return end
+	
+	local headPos = head.Position
+	local headCFrame = head.CFrame
+	
+	if shiftLockActive then
+		-- Camera offset para shift lock (lado da cabeça)
+		local offset = headCFrame.RightVector * 0.5 + headCFrame.UpVector * 0.2
+		local cameraPos = headPos + offset
+		
+		camera.CFrame = CFrame.new(cameraPos, cameraPos + headCFrame.LookVector)
+	else
+		-- Camera padrão
+		camera.CFrame = CFrame.new(headPos + head.CFrame.LookVector * 0.1, headPos + head.CFrame.LookVector)
+	end
 end
 
 -- ============================================================================
@@ -205,14 +215,13 @@ RunService.Heartbeat:Connect(function()
 		return
 	end
 	
-	local moveDir = moveDirection
+	local moveDir = moveInput
 	if moveDir.Magnitude > 0 then
 		moveDir = moveDir.Unit
 		
-		-- Determinar velocidade
 		local speed = 16 -- Caminhada padrão
 		if shiftLockActive then
-			speed = 24 -- Sprint com shift lock
+			speed = 24 -- Sprint
 		end
 		if isCrouching then
 			speed = 8 -- Agachado
@@ -246,12 +255,8 @@ RunService.RenderStepped:Connect(function()
 		return
 	end
 	
-	if shiftLockActive then
-		UpdateCameraRotation()
-		ApplyCharacterRotation()
-	end
-	
-	UpdateCameraPosition()
+	UpdateCharacterRotation()
+	UpdateCamera()
 end)
 
 print("✓ Camera controller with Shift Lock loaded")
