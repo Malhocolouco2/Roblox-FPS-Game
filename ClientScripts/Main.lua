@@ -1,5 +1,5 @@
 -- ============================================================================
--- ROBLOX FPS GAME - CLIENT CAMERA & CONTROLS
+-- ROBLOX FPS GAME - CLIENT CAMERA & CONTROLS (CAMERA FIXED)
 -- Local Script: StarterPlayer > StarterCharacterScripts
 -- ============================================================================
 
@@ -19,15 +19,33 @@ local humanoid = character:WaitForChild("Humanoid")
 local camera = workspace.CurrentCamera
 
 -- ============================================================================
--- SHIFT LOCK VARIABLES
+-- VARIÁVEIS DE CÂMERA
 -- ============================================================================
 
+local cameraX = 0
+local cameraY = 0
+local sensitivity = 0.003
+local maxLookAngle = math.rad(85)
+
 local shiftLocked = false
-local mouseX = 0
-local mouseY = 0
-local lastMouseX = 0
-local lastMouseY = 0
-local sensitivity = 0.002
+
+-- ============================================================================
+-- SHIFT LOCK DETECTOR
+-- ============================================================================
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if input.KeyCode == Enum.KeyCode.LeftShift then
+		shiftLocked = true
+		mouse.Icon = ""
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input, gameProcessed)
+	if input.KeyCode == Enum.KeyCode.LeftShift then
+		shiftLocked = false
+		mouse.Icon = ""
+	end
+end)
 
 -- ============================================================================
 -- MOVIMENTO
@@ -41,22 +59,28 @@ local moveRight = false
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
 
-	if input.KeyCode == Enum.KeyCode.W then moveForward = true
-	elseif input.KeyCode == Enum.KeyCode.S then moveBackward = true
-	elseif input.KeyCode == Enum.KeyCode.A then moveLeft = true
-	elseif input.KeyCode == Enum.KeyCode.D then moveRight = true
-	elseif input.KeyCode == Enum.KeyCode.LeftShift then shiftLocked = true
+	if input.KeyCode == Enum.KeyCode.W then
+		moveForward = true
+	elseif input.KeyCode == Enum.KeyCode.S then
+		moveBackward = true
+	elseif input.KeyCode == Enum.KeyCode.A then
+		moveLeft = true
+	elseif input.KeyCode == Enum.KeyCode.D then
+		moveRight = true
 	elseif input.KeyCode == Enum.KeyCode.Space then
 		humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
 	end
 end)
 
 UserInputService.InputEnded:Connect(function(input, gameProcessed)
-	if input.KeyCode == Enum.KeyCode.W then moveForward = false
-	elseif input.KeyCode == Enum.KeyCode.S then moveBackward = false
-	elseif input.KeyCode == Enum.KeyCode.A then moveLeft = false
-	elseif input.KeyCode == Enum.KeyCode.D then moveRight = false
-	elseif input.KeyCode == Enum.KeyCode.LeftShift then shiftLocked = false
+	if input.KeyCode == Enum.KeyCode.W then
+		moveForward = false
+	elseif input.KeyCode == Enum.KeyCode.S then
+		moveBackward = false
+	elseif input.KeyCode == Enum.KeyCode.A then
+		moveLeft = false
+	elseif input.KeyCode == Enum.KeyCode.D then
+		moveRight = false
 	end
 end)
 
@@ -67,7 +91,9 @@ end)
 local canFire = true
 
 mouse.Button1Down:Connect(function()
-	if not canFire or not character.Parent or humanoid.Health <= 0 or not shiftLocked then return end
+	if not canFire or not character.Parent or humanoid.Health <= 0 or not shiftLocked then
+		return
+	end
 
 	canFire = false
 
@@ -84,40 +110,45 @@ mouse.Button1Down:Connect(function()
 end)
 
 -- ============================================================================
--- CAMERA LOOP
+-- MAIN LOOP - CAMERA ROTATION
 -- ============================================================================
 
+local lastMouseX = 0
+local lastMouseY = 0
+
 RunService.RenderStepped:Connect(function()
-	if not character.Parent then return end
+	if not character.Parent or not shiftLocked then return end
 
-	-- Pegar posição atual do mouse
-	mouseX = mouse.X
-	mouseY = mouse.Y
+	-- OBTER POSIÇÃO DO MOUSE AGORA
+	local mouseX = mouse.X
+	local mouseY = mouse.Y
 
-	if shiftLocked then
-		-- Calcular delta
-		local deltaX = mouseX - lastMouseX
-		local deltaY = mouseY - lastMouseY
+	-- CALCULAR DIFERENÇA
+	local deltaX = mouseX - lastMouseX
+	local deltaY = mouseY - lastMouseY
 
-		-- Atualizar rotação
-		local newYaw = rootPart.CFrame:ToEulerAnglesYXZ() + Vector3.new(0, -deltaX * sensitivity, 0)
-		local pitchX = head.CFrame:ToEulerAnglesYXZ()
-		local newPitch = math.clamp(pitchX - deltaY * sensitivity, -math.rad(80), math.rad(80))
-
-		-- Aplicar rotação
-		rootPart.CFrame = CFrame.new(rootPart.Position) * CFrame.Angles(0, newYaw.Y, 0)
-		head.CFrame = rootPart.CFrame * CFrame.new(0, 0.5, 0) * CFrame.Angles(newPitch, newYaw.Y, 0)
-
-		-- Camera offset
-		local offset = rootPart.CFrame.RightVector * 0.4
-		camera.CFrame = CFrame.new(head.Position + offset, head.Position + head.CFrame.LookVector)
-	else
-		-- Camera normal
-		camera.CFrame = CFrame.new(head.Position, head.Position + head.CFrame.LookVector)
-	end
-
+	-- ATUALIZAR ÚLTIMA POSIÇÃO
 	lastMouseX = mouseX
 	lastMouseY = mouseY
+
+	-- APLICAR ROTAÇÃO
+	if deltaX ~= 0 or deltaY ~= 0 then
+		cameraX = cameraX - (deltaX * sensitivity)
+		cameraY = math.clamp(cameraY - (deltaY * sensitivity), -maxLookAngle, maxLookAngle)
+	end
+
+	-- APLICAR ROTAÇÃO AO PERSONAGEM
+	local yaw = CFrame.Angles(0, -cameraX, 0)
+	local pitch = CFrame.Angles(-cameraY, 0, 0)
+
+	rootPart.CFrame = CFrame.new(rootPart.Position) * yaw
+	head.CFrame = rootPart.CFrame * CFrame.new(0, 0.5, 0) * pitch
+
+	-- POSICIONAR CÂMERA (lado da cabeça)
+	local cameraOffset = head.CFrame.RightVector * 0.5 + head.CFrame.UpVector * 0.2
+	local cameraPos = head.Position + cameraOffset
+
+	camera.CFrame = CFrame.new(cameraPos, cameraPos + head.CFrame.LookVector)
 end)
 
 -- ============================================================================
@@ -125,23 +156,32 @@ end)
 -- ============================================================================
 
 RunService.Heartbeat:Connect(function()
-	if not character.Parent or humanoid.Health <= 0 then return end
+	if not character.Parent or humanoid.Health <= 0 then
+		return
+	end
 
-	local direction = Vector3.new(0, 0, 0)
+	local moveDir = Vector3.new(0, 0, 0)
 
-	if moveForward then direction = direction + rootPart.CFrame.LookVector end
-	if moveBackward then direction = direction - rootPart.CFrame.LookVector end
-	if moveLeft then direction = direction - rootPart.CFrame.RightVector end
-	if moveRight then direction = direction + rootPart.CFrame.RightVector end
+	if moveForward then
+		moveDir = moveDir + rootPart.CFrame.LookVector
+	end
+	if moveBackward then
+		moveDir = moveDir - rootPart.CFrame.LookVector
+	end
+	if moveLeft then
+		moveDir = moveDir - rootPart.CFrame.RightVector
+	end
+	if moveRight then
+		moveDir = moveDir + rootPart.CFrame.RightVector
+	end
 
-	local speed = shiftLocked and 20 or 16
-	humanoid.WalkSpeed = speed
+	humanoid.WalkSpeed = shiftLocked and 20 or 16
 
-	if direction.Magnitude > 0 then
-		humanoid:Move(direction.Unit, false)
+	if moveDir.Magnitude > 0 then
+		humanoid:Move(moveDir.Unit, false)
 	else
 		humanoid:Move(Vector3.new(0, 0, 0), false)
 	end
 end)
 
-print("✓ Client loaded")
+print("✓ Client loaded - Camera FIXED")
